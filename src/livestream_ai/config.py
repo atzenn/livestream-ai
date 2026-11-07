@@ -76,6 +76,32 @@ class YouTubeConfig:
 
 
 @dataclass
+class CartConfig:
+    # Local product catalog (YAML). The operator owns prices/links.
+    # Empty = cart feature off. See products.example.yaml.
+    products_path: str = ""
+    # OBS text source that shows the current product (name + price).
+    product_overlay_source: str = "Product Card"
+
+
+@dataclass
+class LiveChatConfig:
+    # YouTube live chat interaction. Default OFF: needs a live
+    # broadcast's liveChatId (from liveBroadcasts.list, snippet
+    # .liveChatId) and operator OAuth. Poll 10 s = 5 units/call.
+    enabled: bool = False
+    live_chat_id: str = ""
+    poll_interval_s: int = 10
+    # Greetings auto-reply only when true. Default false: every draft
+    # waits in the approval queue, even greetings.
+    auto_reply_greeting: bool = False
+    # Price / product / buy drafts always need approval (study Pha 4).
+    require_approval: bool = True
+    queue_path: str = "logs/chat-queue.jsonl"
+    max_reply_chars: int = 200
+
+
+@dataclass
 class ComplianceConfig:
     disclosure_overlay: str = "Nội dung AI - Avatar AI đang nói"
     log_path: str = "logs/spoken.jsonl"
@@ -91,6 +117,8 @@ class AppConfig:
     obs: OBSConfig = field(default_factory=OBSConfig)
     youtube: YouTubeConfig = field(default_factory=YouTubeConfig)
     compliance: ComplianceConfig = field(default_factory=ComplianceConfig)
+    cart: CartConfig = field(default_factory=CartConfig)
+    live_chat: LiveChatConfig = field(default_factory=LiveChatConfig)
     language: str = "vi"
 
     @property
@@ -201,6 +229,35 @@ def load_config(path: str | Path) -> AppConfig:
         comp.get("block_impersonation", True)
     )
 
+    cart = raw.get("cart") or {}
+    if not isinstance(cart, dict):
+        raise ConfigError("cart must be a mapping")
+    cfg.cart.products_path = str(cart.get("products_path", ""))
+    cfg.cart.product_overlay_source = str(
+        cart.get("product_overlay_source", cfg.cart.product_overlay_source)
+    )
+
+    chat = raw.get("live_chat") or {}
+    if not isinstance(chat, dict):
+        raise ConfigError("live_chat must be a mapping")
+    cfg.live_chat.enabled = bool(chat.get("enabled", False))
+    cfg.live_chat.live_chat_id = str(chat.get("live_chat_id", ""))
+    cfg.live_chat.poll_interval_s = int(
+        chat.get("poll_interval_s", cfg.live_chat.poll_interval_s)
+    )
+    cfg.live_chat.auto_reply_greeting = bool(
+        chat.get("auto_reply_greeting", False)
+    )
+    cfg.live_chat.require_approval = bool(
+        chat.get("require_approval", True)
+    )
+    cfg.live_chat.queue_path = str(
+        chat.get("queue_path", cfg.live_chat.queue_path)
+    )
+    cfg.live_chat.max_reply_chars = int(
+        chat.get("max_reply_chars", cfg.live_chat.max_reply_chars)
+    )
+
     cfg.language = str(raw.get("language", cfg.language))
     _validate(cfg)
     return cfg
@@ -255,3 +312,23 @@ def _validate(cfg: AppConfig) -> None:
         )
     if cfg.youtube.latency not in ("normal", "low", "ultra-low"):
         raise ConfigError(f"unknown youtube.latency: {cfg.youtube.latency}")
+    if cfg.live_chat.poll_interval_s < 5:
+        raise ConfigError(
+            "live_chat.poll_interval_s must be >= 5 "
+            f"(got {cfg.live_chat.poll_interval_s})"
+        )
+    if not 50 <= cfg.live_chat.max_reply_chars <= 500:
+        raise ConfigError(
+            "live_chat.max_reply_chars must be 50-500 "
+            f"(got {cfg.live_chat.max_reply_chars})"
+        )
+    if cfg.live_chat.enabled and not cfg.live_chat.live_chat_id:
+        raise ConfigError(
+            "live_chat.enabled is true but live_chat.live_chat_id is empty "
+            "(get it from liveBroadcasts.list, snippet.liveChatId)"
+        )
+    if cfg.live_chat.enabled and not cfg.cart.products_path:
+        raise ConfigError(
+            "live_chat.enabled is true but cart.products_path is empty "
+            "(price/buy replies need the catalog)"
+        )

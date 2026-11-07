@@ -51,3 +51,24 @@ compliance:
   block_medical_claims: true
   block_before_after: true
   block_impersonation: true
+
+# Phase 2 - cart (giỏ hàng). Operator-owned product catalog.
+# Copy products.example.yaml to products.yaml and edit prices/links.
+# Empty products_path = cart feature off.
+cart:
+  products_path: ""  # e.g. "products.yaml"
+  product_overlay_source: "Product Card"  # OBS text source name
+
+# Phase 2 - live chat (tương tác comment, YouTube-first).
+# live_chat_id comes from liveBroadcasts.list, snippet.liveChatId.
+# Poll 10 s costs 5 units/call. Price/product/buy drafts ALWAYS wait
+# for operator approval (require_approval), even when auto-reply for
+# greetings is on. Default: everything waits.
+live_chat:
+  enabled: false
+  live_chat_id: ""
+  poll_interval_s: 10
+  auto_reply_greeting: false
+  require_approval: true
+  queue_path: "logs/chat-queue.jsonl"
+  max_reply_chars: 200

@@ -26,6 +26,41 @@ title/description saying it is AI, a spoken-line log for every line
 the avatar says, and a block on medical claims, fake before/after
 and impersonation. No pre-recorded loop, no fake live.
 
+## Phase 2 scope (cart + live chat, YouTube-first)
+
+1. Product catalog (`products.yaml`, operator-owned): name, price in
+   VND, cart/affiliate link, keywords. The avatar only repeats
+   catalog data, never invents a price or a link. **Every link goes
+   through ztr.info tracking** (`/goto/?url=...&s=livestream-ai
+   &ref=live-chat` on https://z-tracker.7en.workers.dev/) so Shopee /
+   Lazada affiliate clicks and orders attribute to the live via
+   sub_id. Real affiliate IDs must be entered in ztr.info /admin
+   before a live session.
+2. YouTube live chat polling (`liveChatMessages.list`, 5 units/call,
+   default 10 s): classify comments (price / buy / product /
+   greeting / spam / other) and draft template replies.
+3. Human-in-the-loop approval queue (`logs/chat-queue.jsonl`):
+   price / product / buy drafts wait for the operator to approve
+   (`--approve <id>`) before posting to chat and speaking. Greetings
+   auto-reply only when `live_chat.auto_reply_greeting` is on
+   (default off).
+4. On-screen product card: OBS text source "Product Card" + a static
+   HTML card (`out/chat/product-card.html`) for a Browser source.
+5. NOT in Phase 2: native YouTube Shopping tagging (no public API
+   found, stays manual in Studio), Shopee/TikTok live comment
+   reading (needs Partner rights, Phase 3), LLM-drafted replies
+   (templates only, so no invented prices).
+
+```bash
+cp products.example.yaml products.yaml  # edit real prices + links
+python scripts/run_live_chat.py --config config.yaml --dry-run
+python scripts/run_live_chat.py --config config.yaml  # live poll loop
+python scripts/run_live_chat.py --config config.yaml --approve <id>
+```
+
+See `docs/PHASE2_STATUS.md` for the full status, quota math, and
+operator steps.
+
 ## What runs here, what does not
 
 | Piece | Status on this VM |

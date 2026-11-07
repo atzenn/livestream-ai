@@ -1,0 +1,34 @@
+# Example product catalog - copy to products.yaml and edit.
+# NEVER put real shop credentials here, only public product links.
+# Prices are typed by the operator: the avatar only repeats them,
+# it never fetches or invents a price.
+#
+# AFFILIATE TRACKING (ztr.info, the team's own system): every link
+# below goes through the z-tracker Worker, live at
+# https://z-tracker.7en.workers.dev/ (the ztr.info/* route is not
+# attached yet, so use the workers.dev host for now).
+# Form: /goto/?url=<Shopee/Lazada product URL, URL-encoded>
+#       &s=livestream-ai&ref=live-chat
+# The Worker redirects (302), logs the click, and attaches the
+# affiliate_id + sub_id from /admin config (Shopee sub_id, Lazada
+# sub_id1). REPLACE the inner product URLs with real ones before a
+# live session, and enter the real Shopee + Lazada affiliate IDs in
+# /admin first - until then clicks log but no commission attaches.
+# Short links (/g/<code>) created in /admin work the same way.
+products:
+  - id: P01
+    name: "Den ban hoc LED"
+    price_vnd: 189000
+    platform: shopee
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fshopee.vn%2Fden-ban-hoc-led-REPLACE-ME&s=livestream-ai&ref=live-chat"
+    keywords: ["den", "den ban hoc", "led", "den hoc"]
+    note: "Anh sang 3 che do, co chan sac USB-C."
+    in_stock: true
+  - id: P02
+    name: "Gia do dien thoai"
+    price_vnd: 99000
+    platform: lazada
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fwww.lazada.vn%2Fproducts%2Fgia-do-dien-thoai-REPLACE-ME&s=livestream-ai&ref=live-chat"
+    keywords: ["gia do", "do dien thoai", "tripod"]
+    note: "Xoay 360 do, kep chac chan."
+    in_stock: true
