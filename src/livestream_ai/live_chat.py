@@ -197,8 +197,13 @@ def draft_reply(
             f"Link gio hang: {product.link}"
         )
     elif kind == KIND_BUY:
+        where = ""
+        if product.platform == "shopee":
+            where = " tren Shopee"
+        elif product.platform == "lazada":
+            where = " tren Lazada"
         text = (
-            f"Ban bam link nay de dat {product.name} nhe: {product.link} "
+            f"Ban bam link nay de dat {product.name}{where} nhe: {product.link} "
             f"Gia {format_price_vnd(product.price_vnd)}."
         )
     else:

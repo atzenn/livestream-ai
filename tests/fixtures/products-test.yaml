@@ -2,6 +2,7 @@ products:
   - id: P01
     name: "Den ban hoc LED"
     price_vnd: 189000
+    platform: shopee
     link: "https://example.invalid/shop/den-ban-hoc-led"
     keywords: ["den", "den ban hoc", "led", "den hoc"]
     note: "Anh sang 3 che do, co chan sac USB-C."
@@ -9,6 +10,7 @@ products:
   - id: P02
     name: "Gia do dien thoai"
     price_vnd: 99000
+    platform: lazada
     link: "https://example.invalid/shop/gia-do-dien-thoai"
     keywords: ["gia do", "do dien thoai", "tripod"]
     note: "Xoay 360 do, kep chac chan."

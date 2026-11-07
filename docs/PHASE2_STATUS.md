@@ -7,6 +7,17 @@
 - **Cart = local catalog + OBS overlay + chat link.** The operator owns
   `products.yaml` (name, price, link, keywords). The avatar only
   repeats catalog data, never fetches or invents a price.
+- **Affiliate tracking is ztr.info (the team's own system).** The
+  operator does Shopee + Lazada affiliate, so every catalog link goes
+  through the z-tracker Worker (`/goto/?url=...&s=livestream-ai
+  &ref=live-chat`, or a `/g/<code>` short link from /admin). The
+  Worker redirects (302), logs the click, and attaches affiliate_id +
+  sub_id (Shopee `sub_id`, Lazada `sub_id1`) so live orders attribute
+  to the live. Live host is https://z-tracker.7en.workers.dev/ until
+  the ztr.info/* route is attached. **Blocking point: the real
+  Shopee + Lazada affiliate IDs are still placeholders in /admin -
+  the operator must enter them before a live session, or clicks log
+  but no commission attaches.**
 - **Native YouTube Shopping tagging is NOT in this phase.** The study
   (rev2 section 5.5) found no public API to tag/pin a product inside
   a live stream. Tagging stays manual in YouTube Studio.
@@ -39,7 +50,10 @@
 - `scripts/run_live_chat.py` - `--dry-run` (fixture), live poll loop,
   `--list-pending`, `--approve <id>` (posts to chat, optional
   `--speak` synthesizes the reply with TTS), `--reject <id>`.
-- `products.example.yaml` - 2 example products, example.invalid links.
+- `products.example.yaml` - 2 example products, Shopee + Lazada,
+  links wrapped through ztr.info `/goto/` (inner product URLs are
+  REPLACE-ME placeholders - swap in real affiliate product URLs
+  before a live session).
 - `tests/test_catalog.py` (9 tests) + `tests/test_live_chat.py`
   (17 tests) + `tests/fixtures/chat-sample.json` (5 messages:
   price, buy, greeting, spam link, off-topic).
@@ -79,8 +93,13 @@ longer poll interval or a quota increase.
 
 ## Still open
 
-- LLM draft replies (template today; LLM must keep the same rule:
-  draft from catalog data, approval before speaking).
+- Real Shopee + Lazada affiliate IDs in ztr.info /admin (blocking
+  for any live session that should earn commission).
+- Attach the ztr.info/* route (needs Zone Workers Routes:Edit on the
+  Cloudflare token, or manual add in dashboard) so catalog links can
+  use https://ztr.info/g/... instead of the workers.dev host.
+- Product trend picks for the catalog (season / week / day) - first
+  brief is `~/workspace/system/trend-aff-shopee-lazada-2026-11-07.md`;
 - Shopee Livestream Management Partner approval + TikTok Shop live
   comment path (Phase 3).
 - Real live test on the operator's verified channel (needs Zen's

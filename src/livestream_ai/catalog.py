@@ -7,8 +7,26 @@ short note. The avatar never invents a price or a link: a reply is
 built only from a catalog entry, and a product with no entry gets no
 price answer.
 
-The link may point at any shop the operator uses (YouTube Shopping,
-Shopee, TikTok Shop, or the operator's own store). The catalog does
+Affiliate tracking (the team's own system): every link in this
+catalog goes through ztr.info, the team's affiliate tracking hub
+(Worker `z-tracker`, live at https://z-tracker.7en.workers.dev/
+until the ztr.info/* route is attached). Two forms:
+  - `/goto/?url=<product URL>&s=<site>&ref=<placement>` - wrap a
+    Shopee/Lazada product URL, no pre-registration needed. The
+    Worker redirects (302), logs the click, and attaches the
+    operator's affiliate_id + sub_id from /admin config.
+  - `/g/<code>` - short link created in /admin, same redirect.
+The sub_id carries the source + placement (Shopee:
+`{site}_{placement}_{click_id}`, Lazada: `{site}_{click_id}`), so an
+order from the live attributes to the live. For livestream-ai use
+s=livestream-ai and ref=live-chat (or the live session name).
+IMPORTANT: the affiliate_id values in /admin are still placeholders
+- the operator must enter the real Shopee + Lazada affiliate IDs in
+/admin before a live session, or clicks log but no commission
+attaches. The Worker never invents an affiliate id.
+
+The link may point at any shop the operator uses (Shopee, Lazada,
+YouTube Shopping, or the operator's own store). The catalog does
 not call any shop API and does not fetch prices: the operator edits
 the YAML when a price or link changes, so a wrong price is the
 operator's edit, visible in git, not a silent scrape.
@@ -53,6 +71,13 @@ class Product:
     keywords: list[str] = field(default_factory=list)
     note: str = ""
     in_stock: bool = True
+    # Where the product is sold: "shopee" | "lazada" | "" (unknown).
+    # Shown on the card and named in buy replies so viewers know
+    # which app to open. "" keeps old catalogs working.
+    platform: str = ""
+
+
+PLATFORM_LABELS = {"shopee": "Shopee", "lazada": "Lazada"}
 
 
 def format_price_vnd(price_vnd: int) -> str:
@@ -99,6 +124,11 @@ def load_products(path: str | Path) -> list[Product]:
             isinstance(k, str) for k in keywords
         ):
             raise CatalogError(f"product {pid} keywords must be a list of strings")
+        platform = str(item.get("platform", "")).strip().lower()
+        if platform not in ("", "shopee", "lazada"):
+            raise CatalogError(
+                f"product {pid} platform must be shopee, lazada or empty"
+            )
         products.append(
             Product(
                 id=pid,
@@ -108,6 +138,7 @@ def load_products(path: str | Path) -> list[Product]:
                 keywords=[k.strip().lower() for k in keywords if k.strip()],
                 note=str(item.get("note", "")).strip(),
                 in_stock=bool(item.get("in_stock", True)),
+                platform=platform,
             )
         )
     if not products:
@@ -160,6 +191,8 @@ def render_product_card_html(product: Product) -> str:
     link = html.escape(product.link, quote=True)
     note = html.escape(product.note)
     stock = "Con hang" if product.in_stock else "Het hang"
+    platform = PLATFORM_LABELS.get(product.platform, "")
+    platform_line = f" - {html.escape(platform)}" if platform else ""
     return (
         "<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\">"
         "<style>body{margin:0;font-family:sans-serif;background:transparent}"
@@ -172,7 +205,7 @@ def render_product_card_html(product: Product) -> str:
         ".link{font-size:14px;opacity:.8;margin-top:4px;word-break:break-all}"
         "</style></head><body><div class=\"card\">"
         f"<div class=\"name\">{name}</div>"
-        f"<div class=\"price\">{price}</div>"
+        f"<div class=\"price\">{price}{platform_line}</div>"
         f"<div class=\"note\">{note}</div>"
         f"<div class=\"stock\">{stock} - San pham AI gioi thieu, kiem tra gia truoc khi dat</div>"
         f"<div class=\"link\">{link}</div>"

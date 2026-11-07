@@ -30,7 +30,12 @@ and impersonation. No pre-recorded loop, no fake live.
 
 1. Product catalog (`products.yaml`, operator-owned): name, price in
    VND, cart/affiliate link, keywords. The avatar only repeats
-   catalog data, never invents a price or a link.
+   catalog data, never invents a price or a link. **Every link goes
+   through ztr.info tracking** (`/goto/?url=...&s=livestream-ai
+   &ref=live-chat` on https://z-tracker.7en.workers.dev/) so Shopee /
+   Lazada affiliate clicks and orders attribute to the live via
+   sub_id. Real affiliate IDs must be entered in ztr.info /admin
+   before a live session.
 2. YouTube live chat polling (`liveChatMessages.list`, 5 units/call,
    default 10 s): classify comments (price / buy / product /
    greeting / spam / other) and draft template replies.

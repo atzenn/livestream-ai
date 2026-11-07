@@ -26,6 +26,22 @@ class TestCatalog(unittest.TestCase):
         self.assertEqual(len(self.products), 2)
         self.assertEqual(self.products[0].id, "P01")
         self.assertEqual(self.products[0].price_vnd, 189000)
+        self.assertEqual(self.products[0].platform, "shopee")
+        self.assertEqual(self.products[1].platform, "lazada")
+
+    def test_bad_platform_rejected(self):
+        bad = FIXTURES / "products-bad-platform.yaml"
+        bad.write_text(
+            "products:\n  - id: P99\n    name: \"Bad\"\n    price_vnd: 1000\n"
+            "    platform: tiktok\n"
+            "    link: \"https://example.invalid/x\"\n",
+            encoding="utf-8",
+        )
+        try:
+            with self.assertRaises(CatalogError):
+                load_products(bad)
+        finally:
+            bad.unlink()
 
     def test_format_price(self):
         self.assertEqual(format_price_vnd(189000), "189.000 đ")
@@ -84,6 +100,7 @@ class TestCatalog(unittest.TestCase):
         html = render_product_card_html(p)
         self.assertIn("Den ban hoc LED", html)
         self.assertIn("189.000", html)
+        self.assertIn("Shopee", html)
         self.assertIn("https://example.invalid/shop/den-ban-hoc-led", html)
         self.assertNotIn("<script", html)
 

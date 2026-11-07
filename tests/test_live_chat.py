@@ -73,6 +73,17 @@ class TestParseAndClassify(unittest.TestCase):
         self.assertTrue(draft.needs_approval)
         self.assertEqual(draft.product_id, "P01")
 
+    def test_draft_buy_names_platform(self):
+        msg = ChatMessage(
+            id="m2", author="Minh Quan",
+            text="Minh muon mua gia do dien thoai, link o dau?",
+        )
+        draft = draft_reply(msg, self.products)
+        self.assertIsNotNone(draft)
+        self.assertEqual(draft.kind, "buy_intent")
+        self.assertIn("tren Lazada", draft.text)
+        self.assertIn("99.000", draft.text)
+
     def test_draft_no_product_match_asks_for_name(self):
         msg = ChatMessage(id="m9", author="A", text="Cai nay gia bao nhieu?")
         draft = draft_reply(msg, self.products)
