@@ -1,0 +1,38 @@
+language: vi
+
+tts:
+  engine: vieneu
+  voice: "Hải Đăng"
+  precision: fp32
+  sample_rate: 48000
+  piper_voice_path: ""
+  onnx_dir: ""
+  codec_dir: ""
+
+avatar:
+  engine: "null"
+  livetalking_path: ""
+  checkpoint_dir: ""
+  avatar_bundle: ""
+
+obs:
+  host: localhost
+  port: 4455
+  scene_live: Live
+  scene_human: Human
+  overlay_source: "AI Disclosure"
+
+youtube:
+  client_secrets_path: ""
+  token_path: ""
+  privacy_status: unlisted
+  latency: low
+  default_title: ""
+  default_description: ""
+
+compliance:
+  disclosure_overlay: "Nội dung AI - Avatar AI đang nói"
+  log_path: "logs/spoken.jsonl"
+  block_medical_claims: true
+  block_before_after: true
+  block_impersonation: true

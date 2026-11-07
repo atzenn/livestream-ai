@@ -1,0 +1,16 @@
+# Core (needed for config + offline pipeline)
+pyyaml>=6.0
+
+# TTS primary: VieNeu-TTS v3 Turbo (torch-free CPU/ONNX path)
+# Installs: onnxruntime, tokenizers, soundfile, librosa, gradio, ...
+vieneu>=3.7.1
+
+# TTS fallback (optional): Piper offline TTS
+# piper-tts>=1.3.0
+
+# OBS control
+obsws-python>=1.2.0
+
+# YouTube Live Streaming API (OAuth 2.0)
+google-api-python-client>=2.0
+google-auth-oauthlib>=1.0
