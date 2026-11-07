@@ -69,11 +69,11 @@ Repo: `atzenn/livestream-ai` on GitHub.
 
 ## VieNeu-TTS via Zen's PC (MCP server, port 8790) - NEW, WAITING real test
 
-- Source: VieNeu-TTS v3 Turbo on Zen's PC (model v3-turbo, voice
-  "Hải Đăng"), reached through an MCP server on port 8790. The
-  Leader connected and made a 5.9 s sample voice on the PC on
-  03/11/2026. The access path from the livestream machine to the PC
-  is arranged by the Leader.
+- Source: VieNeu-TTS v3 Turbo on Zen's PC (voice "Hải Đăng"),
+  reached through an MCP server on port 8790. The Leader connected
+  and made a 5.9 s sample voice on the PC on 03/11/2026. The access
+  path from the livestream machine to the PC is arranged by the
+  Leader.
 - Code: new backend `VieNeuPC_TTS` in `src/livestream_ai/tts.py`
   (MCP streamable HTTP, JSON-RPC 2.0, stdlib only), engine name
   `vieneu-pc`, config section `tts.pc_mcp_*` in
@@ -85,20 +85,31 @@ Repo: `atzenn/livestream-ai` on GitHub.
   "[tts] ... falling back to PiperTTS"); the run never stops.
   Verified end-to-end: config with a closed PC port produced 4
   Piper segments (28.2 s audio, exit 0).
-- ASSUMED INTERFACE (not verified): no document in the workspace
-  describes the PC server's tool names or argument names. The
-  client assumes tool "synthesize" with arguments text / voice /
-  model, and accepts audio back as an MCP audio content block, an
-  embedded resource blob, or base64 WAV text. Only the MCP JSON-RPC
-  transport itself (initialize / tools/call) is standard. The
-  Leader must confirm the tool name and argument names before the
-  first real call with the PC.
+- REAL INTERFACE (confirmed by the Leader, tin 7485, 07/11/2026):
+  the server has exactly three tools - list_voices, text_to_speech,
+  get_speech_status. The old tool name "synthesize" was WRONG and
+  is gone. text_to_speech takes text (required), voice (id
+  "local:Hải Đăng"; omit for the server default), file_name, folder
+  and speed - and NO model argument. It does NOT return audio bytes:
+  it returns the file path in the VieNeu library on the PC, a
+  browser listen link, and the engine name. Long text may return
+  while the server is still reading, so the client polls
+  get_speech_status with the job id until the job finishes
+  (status_timeout_s / poll_interval_s in config). The audio file
+  stays on the PC: synthesize() returns the PC-side library path
+  and writes NO local file, so the avatar/OBS side must read the
+  audio from the PC - that playback path is still an open point
+  for the Leader. The exact JSON shape of the tool result is not
+  documented, so the client accepts the file path, listen link,
+  job id, status, engine and duration under several common key
+  names, from a JSON text block or structured content.
 - Tests: 10 new unit tests (6 TTS + 4 config), all PASS, total
   42/32 old + 10 new. The PC backend is tested against a local
-  mock MCP server only (sine WAV audio block, session id carried,
-  tool error, unreachable server, fallback logging). The real PC
-  was NEVER dialled in tests. A real test with the PC is still
-  owed, through the Leader's access path.
+  mock MCP server only (file-path result, session id carried,
+  status polling, voice omit, list_voices, tool error,
+  unreachable server, fallback logging). The real PC was NEVER
+  dialled in tests. A real test with the PC is still owed,
+  through the Leader's access path.
 
 ## Piper fallback - PASS
 
@@ -156,7 +167,9 @@ Repo: `atzenn/livestream-ai` on GitHub.
    (operator's account, OAuth consent) - who provides it?
 4. License: scaffold uses MIT (ZenCode default). Confirmed by the
    Leader (tin 7403).
-5. VieNeu PC path: confirm the MCP tool name ("synthesize" assumed)
-   and argument names (text / voice / model assumed), provide the
-   access path to Zen's PC, and arrange the first real test call
-   with the PC.
+5. VieNeu PC path: tool name and arguments are CONFIRMED (Leader
+   tin 7485: text_to_speech, no model argument, file path + listen
+   link back). Still open: provide the access path to Zen's PC,
+   arrange the first real test call with the PC, and decide how
+   the avatar/OBS side reads the audio file that lives in the
+   VieNeu library on the PC.

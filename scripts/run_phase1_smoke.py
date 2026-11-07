@@ -12,9 +12,10 @@ Modes:
                 first run), null avatar, fake OBS. No live broadcast.
   --pc-tts    : VieNeu-TTS from Zen's PC via its MCP server (port
                 8790). Needs the Leader's access path to the PC; the
-                MCP tool name / arguments are ASSUMED until the
-                Leader confirms them. Falls back to Piper when the
-                PC server is unreachable.
+                real tool is text_to_speech (Leader tin 7485), which
+                returns the audio file path in the VieNeu library on
+                the PC + a listen link, not audio bytes. Falls back
+                to Piper when the PC server is unreachable.
   --real-obs  : also connects to a real OBS (needs OBS running with
                 WebSocket server on, OBS_WS_PASSWORD set).
   --go-live   : NOT implemented in Phase 1. Going live needs the
@@ -80,8 +81,11 @@ def main() -> int:
         pc_mcp_port=cfg.tts.pc_mcp_port,
         pc_mcp_path=cfg.tts.pc_mcp_path,
         pc_mcp_tool=cfg.tts.pc_mcp_tool,
-        pc_mcp_model=cfg.tts.pc_mcp_model,
+        pc_mcp_folder=cfg.tts.pc_mcp_folder,
+        pc_mcp_speed=cfg.tts.pc_mcp_speed,
         pc_mcp_timeout_s=cfg.tts.pc_mcp_timeout_s,
+        pc_mcp_status_timeout_s=cfg.tts.pc_mcp_status_timeout_s,
+        pc_mcp_poll_interval_s=cfg.tts.pc_mcp_poll_interval_s,
     )
     avatar = build_avatar(
         cfg.avatar.engine,

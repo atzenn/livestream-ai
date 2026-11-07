@@ -12,8 +12,7 @@ tts:
   pc_mcp_host: "127.0.0.1"
   pc_mcp_port: 8790
   pc_mcp_path: "/mcp"
-  pc_mcp_tool: "synthesize"
-  pc_mcp_model: "v3-turbo"
+  pc_mcp_tool: "text_to_speech"
   pc_mcp_timeout_s: 60
 
 avatar:

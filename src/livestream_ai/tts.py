@@ -11,22 +11,31 @@ piper1-gpl GPL-3.0; voice model licenses are per-voice. Vietnamese
 voice vi_VN (VIVOS) is used when configured.
 
 PC source: VieNeu-TTS v3 Turbo running on Zen's PC, reached through
-an MCP server on port 8790 (model v3-turbo, voice "Hải Đăng"). The
-Leader confirmed a 5.9 s sample voice was made on the PC on
-03/11/2026. The access path from the livestream machine to Zen's PC
-is arranged by the Leader; this client never dials the PC directly
-in tests - it is tested against a local mock MCP server only.
+an MCP server on port 8790 (voice "Hải Đăng"). The Leader confirmed
+a 5.9 s sample voice was made on the PC on 03/11/2026. The access
+path from the livestream machine to Zen's PC is arranged by the
+Leader; this client never dials the PC directly in tests - it is
+tested against a local mock MCP server only.
 
-ASSUMED MCP INTERFACE (read before the first real call): no document
-in the workspace describes the PC server's tool names or argument
-names, so the tool name ("synthesize") and the argument names
-(text / voice / model) are ASSUMPTIONS. Only the MCP JSON-RPC
-transport itself is standard: initialize, notifications/initialized,
-tools/call over streamable HTTP (POST to the configured path, with
-the mcp-session-id header carried after initialize). The Leader must
-confirm the tool name and argument names before the first real call
-with the PC. The client accepts the audio back in three shapes:
-MCP audio content block, embedded resource blob, or base64 text.
+REAL MCP INTERFACE (confirmed by the Leader, tin 7485, 07/11/2026):
+the VieNeu server exposes exactly three tools - list_voices,
+text_to_speech and get_speech_status. The tool name "synthesize"
+used before was WRONG. text_to_speech takes text (required), voice
+(a voice id such as "local:Hải Đăng"; omit it to use the server
+default), file_name, folder and speed. There is NO model argument.
+The tool does NOT return audio bytes: it returns the path of the
+file in the VieNeu library on the PC, a link to listen in the
+browser, and the engine name. Long text may return while the server
+is still reading, so the client polls get_speech_status with the
+job id until the job is done. The audio file lives on the PC;
+synthesize() therefore returns the PC-side library path and does
+NOT write a local WAV at out_path. Only the MCP JSON-RPC transport
+itself (initialize, notifications/initialized, tools/call over
+streamable HTTP) is standard. The exact JSON shape of the tool
+result is not documented, so the client accepts the file path,
+listen link, job id, status, engine and duration under several
+common key names, from a JSON text block or from structured
+content.
 
 Mock: writes a silent WAV of plausible length (0.1 s per word,
 minimum 0.5 s) so the pipeline can be tested offline without any
@@ -41,11 +50,11 @@ no contract and can rate-limit, so it is not a reliable live path.
 
 from __future__ import annotations
 
-import base64
 import json
-import math
+import re
 import struct
 import sys
+import time
 import urllib.error
 import urllib.request
 import wave
@@ -64,6 +73,12 @@ class SynthesizedAudio:
     duration_s: float
     engine: str
     voice: str
+    # VieNeu-PC only: the audio file lives on the PC, so `path` is
+    # the PC-side library path; `listen_url` is the browser link
+    # the server returns, and `job_id` is the server job id.
+    remote_path: str = ""
+    listen_url: str = ""
+    job_id: str = ""
 
 
 def _write_silent_wav(path: str, sample_rate: int, duration_s: float) -> None:
@@ -219,18 +234,37 @@ class VieNeuPC_TTS:
     `path` defaults to "/mcp". Pass a full `url` instead to override
     host/port/path (e.g. when the PC is reached through a tunnel).
 
-    ASSUMED INTERFACE: the tool name ("synthesize") and the argument
-    names (text / voice / model) are assumptions - no document in the
-    workspace describes the PC server's tools. The Leader must confirm
-    them before the first real call. The client only assumes the MCP
-    transport itself (initialize / tools/call), which is the published
-    MCP spec. Audio is accepted back as an MCP audio content block,
-    an embedded resource blob, or base64 text.
+    REAL INTERFACE (Leader tin 7485): the server has three tools -
+    list_voices, text_to_speech, get_speech_status. text_to_speech
+    takes text (required), voice (a voice id such as
+    "local:Hải Đăng"; omit it to use the server default), file_name,
+    folder and speed. There is NO model argument and the tool does
+    NOT return audio bytes: it returns the file path in the VieNeu
+    library on the PC, a browser listen link, and the engine name.
+    Long text may return while the server is still reading; the
+    client then polls get_speech_status with the job id until the
+    job finishes. The audio file stays on the PC, so synthesize()
+    returns the PC-side library path and writes NO local file at
+    out_path. The caller must play the audio from the PC (or open
+    the listen link); the livestream machine cannot read a PC-local
+    path by itself. file_name defaults to the out_path basename so
+    the library file is named after the segment.
+
+    Voice ids: a bare preset name ("Hải Đăng") is normalised to
+    "local:Hải Đăng". Pass voice="" to omit the argument entirely
+    and let the server use its default voice.
     """
 
-    # Tool name and argument names are ASSUMED (see class docstring).
-    DEFAULT_TOOL = "synthesize"
-    DEFAULT_MODEL = "v3-turbo"
+    # Real tool names (Leader tin 7485). "synthesize" was wrong and
+    # is not used anywhere in this client.
+    TOOL_SYNTHESIZE = "text_to_speech"
+    TOOL_LIST_VOICES = "list_voices"
+    TOOL_STATUS = "get_speech_status"
+    DEFAULT_TOOL = TOOL_SYNTHESIZE
+
+    # Statuses the server may report for a speech job.
+    _DONE_STATUSES = {"completed", "done", "finished", "success", "ready"}
+    _FAILED_STATUSES = {"failed", "error", "cancelled", "canceled"}
 
     def __init__(
         self,
@@ -238,10 +272,13 @@ class VieNeuPC_TTS:
         port: int = 8790,
         path: str = "/mcp",
         tool: str = DEFAULT_TOOL,
-        voice: str = "Hải Đăng",
-        model: str = DEFAULT_MODEL,
+        voice: str = "local:Hải Đăng",
         timeout_s: int = 60,
         url: str = "",
+        folder: str = "",
+        speed: float | None = None,
+        status_timeout_s: int = 120,
+        poll_interval_s: float = 2.0,
     ):
         if url:
             if not url.startswith(("http://", "https://")):
@@ -265,12 +302,28 @@ class VieNeuPC_TTS:
             self.path = path if path.startswith("/") else "/" + path
             self._url = f"http://{host}:{port}{self.path}"
         self.tool = tool
-        self.voice = voice
-        self.model = model
+        self.voice = self._normalise_voice(voice)
         self.timeout_s = timeout_s
+        self.folder = folder
+        self.speed = speed
+        self.status_timeout_s = status_timeout_s
+        self.poll_interval_s = poll_interval_s
         self._session_id = ""
         self._next_id = 1
         self._initialized = False
+
+    @staticmethod
+    def _normalise_voice(voice: str) -> str:
+        """Bare preset name -> voice id.
+        ("Hải Đăng" -> "local:Hải Đăng").
+
+        A value that already carries a scheme ("local:...", "clone:...")
+        is kept as-is; "" stays "" (voice argument omitted).
+        """
+        voice = (voice or "").strip()
+        if not voice or ":" in voice:
+            return voice
+        return f"local:{voice}"
 
     def _post(self, payload: dict) -> dict:
         body = json.dumps(payload).encode("utf-8")
@@ -382,36 +435,192 @@ class VieNeuPC_TTS:
         self._notify("notifications/initialized")
         self._initialized = True
 
+    def _tts_arguments(self, text: str, out_path: str) -> dict:
+        """Arguments for text_to_speech. Voice is omitted when empty
+        (server default); folder and speed are sent only when set.
+        file_name is the out_path basename, so the library file is
+        named after the segment. No model argument: the real tool
+        has none."""
+        args: dict = {"text": text, "file_name": Path(out_path).name}
+        if self.voice:
+            args["voice"] = self.voice
+        if self.folder:
+            args["folder"] = self.folder
+        if self.speed is not None:
+            args["speed"] = self.speed
+        return args
+
     @staticmethod
-    def _extract_audio(result: dict) -> bytes:
-        """Pull WAV bytes out of a tools/call result, in any of the
-        three shapes the client accepts (audio block, resource blob,
-        base64 text). Raises TTSError when no audio is found."""
+    def _parse_speech_result(result: dict) -> dict:
+        """Pull the speech result out of a tools/call result.
+
+        The server returns a file path in the VieNeu library, a
+        browser listen link, the engine name, and (for long text) a
+        job id plus a not-yet-done status - never audio bytes. The
+        exact JSON shape is not documented, so accept the fields
+        under several common key names, from a JSON text block, from
+        structured content, or from the result itself. A plain-text
+        (non-JSON) block is scanned for a listen URL and an audio
+        file path as a last resort. Returns a dict with any of:
+        file_path, listen_url, engine, job_id, status, duration_s,
+        sample_rate. Raises TTSError when nothing usable is found.
+        """
+        merged: dict = {}
+        structured = result.get("structuredContent")
+        if isinstance(structured, dict):
+            merged.update(structured)
         content = result.get("content")
-        if not isinstance(content, list):
-            raise TTSError("PC MCP tools/call returned no content blocks")
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            kind = block.get("type")
-            if kind == "audio" and block.get("data"):
-                return base64.b64decode(block["data"])
-            if kind == "resource":
-                resource = block.get("resource") or {}
-                if resource.get("blob"):
-                    return base64.b64decode(resource["blob"])
-            if kind == "text" and block.get("text"):
-                text = block["text"].strip()
-                try:
-                    raw = base64.b64decode(text, validate=True)
-                except Exception:
+        if isinstance(content, list):
+            for block in content:
+                if not isinstance(block, dict):
                     continue
-                if raw[:4] == b"RIFF":
-                    return raw
-        raise TTSError(
-            "PC MCP tools/call returned no audio block "
-            "(expected audio / resource blob / base64 WAV text)"
+                if block.get("type") == "text" and block.get("text"):
+                    text = block["text"].strip()
+                    try:
+                        parsed = json.loads(text)
+                    except (json.JSONDecodeError, ValueError):
+                        parsed = None
+                    if isinstance(parsed, dict):
+                        merged.update(parsed)
+                    elif isinstance(parsed, list):
+                        merged.setdefault("voices", parsed)
+                    else:
+                        url = re.search(r"https?://\S+", text)
+                        if url:
+                            merged.setdefault(
+                                "listen_url", url.group(0).rstrip(".,)\"'")
+                            )
+                        path = re.search(
+                            r"[A-Za-z]:\\[^\s\"']+\.(?:wav|mp3)\b"
+                            r"|/[^\s\"']+\.(?:wav|mp3)\b",
+                            text,
+                            re.IGNORECASE,
+                        )
+                        if path:
+                            merged.setdefault("file_path", path.group(0))
+        for key, value in result.items():
+            if key not in ("content", "structuredContent", "isError"):
+                merged.setdefault(key, value)
+        out: dict = {}
+        for src_key in (
+            "file_path", "path", "file", "audio_path", "audio_file",
+        ):
+            if merged.get(src_key):
+                out["file_path"] = str(merged[src_key])
+                break
+        for src_key in (
+            "listen_url", "listenUrl", "url", "audio_url", "play_url",
+            "playback_url",
+        ):
+            if merged.get(src_key):
+                out["listen_url"] = str(merged[src_key])
+                break
+        for src_key in ("job_id", "jobId", "job", "id"):
+            if merged.get(src_key):
+                out["job_id"] = str(merged[src_key])
+                break
+        for src_key in ("status", "state"):
+            if merged.get(src_key):
+                out["status"] = str(merged[src_key]).lower()
+                break
+        if merged.get("engine"):
+            out["engine"] = str(merged["engine"])
+        for src_key in ("duration_s", "duration"):
+            if merged.get(src_key) is not None:
+                try:
+                    out["duration_s"] = float(merged[src_key])
+                except (TypeError, ValueError):
+                    pass
+                break
+        if merged.get("sample_rate") is not None:
+            try:
+                out["sample_rate"] = int(merged["sample_rate"])
+            except (TypeError, ValueError):
+                pass
+        if "voices" in merged:
+            out["voices"] = merged["voices"]
+        if not out:
+            raise TTSError(
+                "PC MCP tools/call returned no usable speech result "
+                "(expected a file path / listen link / job id, got "
+                f"{str(result)[:200]})"
+            )
+        return out
+
+    def list_voices(self) -> list[str]:
+        """List voice ids from the PC server (tool list_voices)."""
+        self._initialize()
+        result = self._rpc(
+            "tools/call",
+            {"name": self.TOOL_LIST_VOICES, "arguments": {}},
         )
+        parsed = self._parse_speech_result(result)
+        voices = parsed.get("voices")
+        if isinstance(voices, list):
+            ids: list[str] = []
+            for item in voices:
+                if isinstance(item, str):
+                    ids.append(item)
+                elif isinstance(item, dict):
+                    for key in ("id", "voice_id", "name"):
+                        if item.get(key):
+                            ids.append(str(item[key]))
+                            break
+            return ids
+        raise TTSError(
+            "PC MCP list_voices returned no voice list: "
+            f"{str(result)[:200]}"
+        )
+
+    def get_speech_status(self, job_id: str) -> dict:
+        """Poll one speech job (tool get_speech_status)."""
+        self._initialize()
+        result = self._rpc(
+            "tools/call",
+            {
+                "name": self.TOOL_STATUS,
+                "arguments": {"job_id": job_id},
+            },
+        )
+        return self._parse_speech_result(result)
+
+    def _wait_for_speech(self, first: dict) -> dict:
+        """Wait until a speech job finishes, polling get_speech_status.
+
+        Returns the merged result (later polls override earlier
+        fields, so a file path that only appears when the job is
+        done is kept). Jobs already done, or without a job id,
+        return at once. Raises TTSError on a failed job or on
+        timeout.
+        """
+        merged = dict(first)
+        job_id = merged.get("job_id", "")
+        status = merged.get("status", "")
+        if not job_id or status in self._DONE_STATUSES:
+            return merged
+        if status in self._FAILED_STATUSES:
+            raise TTSError(
+                f"PC MCP speech job {job_id} failed (status: {status})"
+            )
+        deadline = time.monotonic() + self.status_timeout_s
+        while True:
+            if time.monotonic() >= deadline:
+                raise TTSError(
+                    f"PC MCP speech job {job_id} did not finish "
+                    f"within {self.status_timeout_s}s "
+                    f"(last status: {status})"
+                )
+            time.sleep(self.poll_interval_s)
+            update = self.get_speech_status(job_id)
+            merged.update(update)
+            status = merged.get("status", "")
+            if status in self._DONE_STATUSES:
+                return merged
+            if status in self._FAILED_STATUSES:
+                raise TTSError(
+                    f"PC MCP speech job {job_id} failed "
+                    f"(status: {status})"
+                )
 
     def synthesize(self, text: str, out_path: str) -> SynthesizedAudio:
         self._initialize()
@@ -419,29 +628,35 @@ class VieNeuPC_TTS:
             "tools/call",
             {
                 "name": self.tool,
-                "arguments": {
-                    "text": text,
-                    "voice": self.voice,
-                    "model": self.model,
-                },
+                "arguments": self._tts_arguments(text, out_path),
             },
         )
-        raw = self._extract_audio(result)
-        if raw[:4] != b"RIFF":
+        parsed = self._parse_speech_result(result)
+        # Long text may come back while the server is still reading.
+        parsed = self._wait_for_speech(parsed)
+        file_path = parsed.get("file_path", "")
+        if not file_path:
             raise TTSError(
-                "PC MCP server returned bytes that are not a WAV file"
+                "PC MCP text_to_speech returned no file path "
+                "(the server keeps the audio in its VieNeu library; "
+                f"job: {parsed.get('job_id', '-')}, "
+                f"status: {parsed.get('status', '-')})"
             )
-        with open(out_path, "wb") as f:
-            f.write(raw)
-        with wave.open(out_path, "rb") as w:
-            sample_rate = w.getframerate()
-            duration = w.getnframes() / float(sample_rate)
+        # The audio lives on the PC: no local file is written at
+        # out_path. sample_rate falls back to 48 kHz, the VieNeu
+        # v3 Turbo output rate; duration is 0.0 when the server
+        # does not report it. engine is always "vieneu-pc": it
+        # identifies this backend in pipeline reports, where
+        # "vieneu" already means the local SDK engine.
         return SynthesizedAudio(
-            path=out_path,
-            sample_rate=sample_rate,
-            duration_s=duration,
+            path=file_path,
+            sample_rate=parsed.get("sample_rate", 48000),
+            duration_s=parsed.get("duration_s", 0.0),
             engine="vieneu-pc",
             voice=self.voice,
+            remote_path=file_path,
+            listen_url=parsed.get("listen_url", ""),
+            job_id=parsed.get("job_id", ""),
         )
 
 
@@ -512,10 +727,15 @@ class FallbackTTS:
 
 def _pc_kwargs(kwargs: dict) -> dict:
     """Merge PC server settings from a `pc_server` dict (preferred)
-    and the flat pc_mcp_* kwargs. Returns kwargs for VieNeuPC_TTS."""
+    and the flat pc_mcp_* kwargs. Returns kwargs for VieNeuPC_TTS.
+    There is no model setting: the real text_to_speech tool takes
+    no model argument (Leader tin 7485)."""
     pc = kwargs.get("pc_server") or {}
     if not isinstance(pc, dict):
         raise TTSError("pc_server must be a mapping")
+    speed = pc.get(
+        "speed", kwargs.get("pc_mcp_speed", kwargs.get("speed"))
+    )
     return {
         "host": str(pc.get("host", kwargs.get("pc_mcp_host", ""))),
         "url": str(
@@ -533,10 +753,20 @@ def _pc_kwargs(kwargs: dict) -> dict:
                 "tool", kwargs.get("pc_mcp_tool", VieNeuPC_TTS.DEFAULT_TOOL)
             )
         ),
-        "model": str(
+        "folder": str(
+            pc.get("folder", kwargs.get("pc_mcp_folder", ""))
+        ),
+        "speed": None if speed is None else float(speed),
+        "status_timeout_s": int(
             pc.get(
-                "model",
-                kwargs.get("pc_mcp_model", VieNeuPC_TTS.DEFAULT_MODEL),
+                "status_timeout_s",
+                kwargs.get("pc_mcp_status_timeout_s", 120),
+            )
+        ),
+        "poll_interval_s": float(
+            pc.get(
+                "poll_interval_s",
+                kwargs.get("pc_mcp_poll_interval_s", 2.0),
             )
         ),
         "timeout_s": int(
@@ -563,7 +793,10 @@ def build_tts(engine: str, **kwargs):
     mock | fallback.
 
     vieneu-pc is the VieNeu-TTS server on Zen's PC (MCP, port 8790).
-    When piper_voice_path is set, the PC client is wrapped with a
+    It calls the real text_to_speech tool and returns the audio
+    file path in the VieNeu library on the PC plus the browser
+    listen link - no local audio file is written. When
+    piper_voice_path is set, the PC client is wrapped with a
     Piper fallback; without it the PC client stands alone.
     fallback is the full chain PC server -> local VieNeu -> Piper
     (each step only when configured: PC only when enabled, Piper

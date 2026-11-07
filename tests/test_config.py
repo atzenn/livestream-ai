@@ -54,8 +54,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(cfg.tts.pc_mcp_host, "127.0.0.1")
         self.assertEqual(cfg.tts.pc_mcp_port, 8790)
         self.assertEqual(cfg.tts.pc_mcp_path, "/mcp")
-        self.assertEqual(cfg.tts.pc_mcp_tool, "synthesize")
-        self.assertEqual(cfg.tts.pc_mcp_model, "v3-turbo")
+        self.assertEqual(cfg.tts.pc_mcp_tool, "text_to_speech")
         self.assertEqual(cfg.tts.pc_mcp_timeout_s, 60)
 
     def test_pc_engine_needs_enabled(self):

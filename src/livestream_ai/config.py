@@ -29,17 +29,21 @@ class TTSConfig:
     onnx_dir: str = ""
     codec_dir: str = ""
     # VieNeu-TTS on Zen's PC via its MCP server (port 8790).
-    # Default OFF: the access path is arranged by the Leader, and
-    # the MCP tool name / argument names are ASSUMED until the
-    # Leader confirms them (see tts.py VieNeuPC_TTS).
+    # Default OFF: the access path is arranged by the Leader. The
+    # tool is the real text_to_speech (Leader tin 7485); the tool
+    # takes no model argument. folder/speed are optional
+    # text_to_speech arguments (omit = server default).
     pc_mcp_enabled: bool = False
     pc_mcp_host: str = ""  # PC address; env LIVESTREAM_PC_HOST wins
     pc_mcp_url: str = ""  # full MCP endpoint URL; when set, host/port/path are ignored
     pc_mcp_port: int = 8790
     pc_mcp_path: str = "/mcp"  # streamable-HTTP endpoint (assumed)
-    pc_mcp_tool: str = "synthesize"  # ASSUMED tool name
-    pc_mcp_model: str = "v3-turbo"
+    pc_mcp_tool: str = "text_to_speech"  # real tool (Leader tin 7485)
+    pc_mcp_folder: str = ""
+    pc_mcp_speed: float | None = None
     pc_mcp_timeout_s: int = 60
+    pc_mcp_status_timeout_s: int = 120  # max wait polling get_speech_status
+    pc_mcp_poll_interval_s: float = 2.0
 
 
 @dataclass
@@ -125,16 +129,27 @@ def load_config(path: str | Path) -> AppConfig:
     )
     cfg.tts.pc_mcp_port = int(tts.get("pc_mcp_port", 8790))
     cfg.tts.pc_mcp_path = str(tts.get("pc_mcp_path", "/mcp"))
-    cfg.tts.pc_mcp_tool = str(tts.get("pc_mcp_tool", "synthesize"))
-    cfg.tts.pc_mcp_model = str(tts.get("pc_mcp_model", "v3-turbo"))
+    cfg.tts.pc_mcp_tool = str(tts.get("pc_mcp_tool", "text_to_speech"))
+    cfg.tts.pc_mcp_folder = str(tts.get("pc_mcp_folder", ""))
+    _speed = tts.get("pc_mcp_speed")
+    cfg.tts.pc_mcp_speed = None if _speed is None else float(_speed)
     cfg.tts.pc_mcp_timeout_s = int(tts.get("pc_mcp_timeout_s", 60))
+    cfg.tts.pc_mcp_status_timeout_s = int(
+        tts.get("pc_mcp_status_timeout_s", 120)
+    )
+    cfg.tts.pc_mcp_poll_interval_s = float(
+        tts.get("pc_mcp_poll_interval_s", 2.0)
+    )
     cfg.tts.pc_mcp_url = str(
         os.environ.get("LIVESTREAM_PC_URL", "")
         or tts.get("pc_mcp_url", "")
     )
     # Nested tts.pc_server block (preferred form) overrides the flat
     # pc_mcp_* keys above when present. Keys: enabled, host, url,
-    # port, path, tool, model, timeout_s (or timeout).
+    # port, path, tool, folder, speed, timeout_s (or timeout),
+    # status_timeout_s, poll_interval_s. A "model" key, if present
+    # from an old config, is ignored: the real text_to_speech tool
+    # takes no model argument (Leader tin 7485).
     pc = tts.get("pc_server") or {}
     if not isinstance(pc, dict):
         raise ConfigError("tts.pc_server must be a mapping")
@@ -154,10 +169,18 @@ def load_config(path: str | Path) -> AppConfig:
         cfg.tts.pc_mcp_path = str(pc["path"])
     if "tool" in pc:
         cfg.tts.pc_mcp_tool = str(pc["tool"])
-    if "model" in pc:
-        cfg.tts.pc_mcp_model = str(pc["model"])
+    if "folder" in pc:
+        cfg.tts.pc_mcp_folder = str(pc["folder"])
+    if "speed" in pc:
+        cfg.tts.pc_mcp_speed = (
+            None if pc["speed"] is None else float(pc["speed"])
+        )
     if "timeout_s" in pc or "timeout" in pc:
         cfg.tts.pc_mcp_timeout_s = int(pc.get("timeout_s", pc.get("timeout")))
+    if "status_timeout_s" in pc:
+        cfg.tts.pc_mcp_status_timeout_s = int(pc["status_timeout_s"])
+    if "poll_interval_s" in pc:
+        cfg.tts.pc_mcp_poll_interval_s = float(pc["poll_interval_s"])
 
     av = raw.get("avatar") or {}
     cfg.avatar.engine = str(av.get("engine", cfg.avatar.engine))
@@ -235,6 +258,20 @@ def _validate(cfg: AppConfig) -> None:
         )
     if cfg.tts.pc_mcp_enabled and not cfg.tts.pc_mcp_tool:
         raise ConfigError("tts.pc_server.tool must not be empty")
+    if cfg.tts.pc_mcp_speed is not None and cfg.tts.pc_mcp_speed <= 0:
+        raise ConfigError(
+            f"invalid tts.pc_server.speed: {cfg.tts.pc_mcp_speed}"
+        )
+    if cfg.tts.pc_mcp_status_timeout_s <= 0:
+        raise ConfigError(
+            "invalid tts.pc_server.status_timeout_s: "
+            f"{cfg.tts.pc_mcp_status_timeout_s}"
+        )
+    if cfg.tts.pc_mcp_poll_interval_s <= 0:
+        raise ConfigError(
+            "invalid tts.pc_server.poll_interval_s: "
+            f"{cfg.tts.pc_mcp_poll_interval_s}"
+        )
     if not 1 <= cfg.tts.pc_mcp_port <= 65535:
         raise ConfigError(
             f"invalid tts.pc_mcp_port: {cfg.tts.pc_mcp_port}"

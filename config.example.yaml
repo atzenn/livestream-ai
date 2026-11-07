@@ -12,17 +12,23 @@ tts:
   onnx_dir: "models/vieneu-onnx"  # local VieNeu ONNX files (fp32)
   codec_dir: "models/moss-codec"  # local MOSS codec ONNX files
   # VieNeu-TTS on Zen's PC via its MCP server (port 8790).
-  # Default OFF: the access path is arranged by the Leader, and the
-  # MCP tool name / argument names are ASSUMED until the Leader
-  # confirms them (see src/livestream_ai/tts.py). Host can also come
-  # from env LIVESTREAM_PC_HOST. No credential goes here.
+  # Default OFF: the access path is arranged by the Leader. The
+  # tool is the real text_to_speech (Leader tin 7485): it takes
+  # text, voice id (e.g. local:Hải Đăng, omit for server default),
+  # file_name, folder and speed - and NO model argument. It returns
+  # the file path in the VieNeu library on the PC + a browser
+  # listen link, not audio bytes. Host can also come from env
+  # LIVESTREAM_PC_HOST. No credential goes here.
   pc_mcp_enabled: false
   pc_mcp_host: ""
   pc_mcp_port: 8790
   pc_mcp_path: "/mcp"
-  pc_mcp_tool: "synthesize"
-  pc_mcp_model: "v3-turbo"
+  pc_mcp_tool: "text_to_speech"
+  pc_mcp_folder: ""      # optional VieNeu library folder
+  pc_mcp_speed: null     # optional speech speed; null = server default
   pc_mcp_timeout_s: 60
+  pc_mcp_status_timeout_s: 120  # max wait polling get_speech_status
+  pc_mcp_poll_interval_s: 2.0
 
 avatar:
   engine: "null"        # "null" (dry run) | musetalk (GPU box only)

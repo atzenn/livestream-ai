@@ -88,18 +88,24 @@ yet tested live:
     --script scripts/sample_script_vi.md --out out/pc --pc-tts
 ```
 
-The PC runs VieNeu-TTS v3 Turbo (model v3-turbo, voice "Hải Đăng")
-behind an MCP server on port 8790; the Leader made a 5.9 s sample
-voice on the PC on 03/11/2026. The access path from the livestream
-machine to the PC is arranged by the Leader. When the PC server is
-unreachable the pipeline falls back to Piper automatically and logs
-the fallback; it never stops the run. The MCP tool name
-("synthesize") and argument names (text / voice / model) are
-ASSUMPTIONS: no document in the workspace describes the PC
-server's tools, so the Leader must confirm them before the first
-real call. Only the MCP JSON-RPC transport is standard. The PC
-client is tested against a local mock MCP server only; a real test
-with the PC is still owed.
+The PC runs VieNeu-TTS v3 Turbo (voice "Hải Đăng") behind an MCP
+server on port 8790; the Leader made a 5.9 s sample voice on the PC
+on 03/11/2026. The access path from the livestream machine to the
+PC is arranged by the Leader. When the PC server is unreachable the
+pipeline falls back to Piper automatically and logs the fallback;
+it never stops the run. The real MCP interface was confirmed by
+the Leader (tin 7485): the server has three tools - list_voices,
+text_to_speech, get_speech_status. text_to_speech takes text,
+voice (id "local:Hải Đăng", omit for the server default),
+file_name, folder and speed, and NO model argument. It does NOT
+return audio bytes: it returns the file path in the VieNeu library
+on the PC, a browser listen link, and the engine name. Long text
+may return while the server is still reading; the client polls
+get_speech_status with the job id until the job is done. The
+audio file stays on the PC, so the PC backend returns the PC-side
+library path and writes no local file - the avatar/OBS side must
+read the audio from the PC. The PC client is tested against a
+local mock MCP server only; a real test with the PC is still owed.
 
 Model files live in `models/` (gitignored, ~600 MB). They are
 re-downloadable with `scripts/setup_models.sh`. The script also
