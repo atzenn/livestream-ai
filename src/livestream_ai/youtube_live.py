@@ -107,6 +107,23 @@ def build_transition_params(broadcast_id: str, status: str) -> dict:
     return {"part": "id,status", "id": broadcast_id, "broadcastStatus": status}
 
 
+def build_chat_insert_body(live_chat_id: str, text: str) -> dict:
+    """Body for liveChatMessages.insert (post one chat message)."""
+    if not live_chat_id:
+        raise YouTubeError("live_chat_id is empty")
+    if not text.strip():
+        raise YouTubeError("chat message text is empty")
+    if len(text) > 200:
+        raise YouTubeError("chat message text is over 200 characters")
+    return {
+        "snippet": {
+            "liveChatId": live_chat_id,
+            "type": "textMessageEvent",
+            "textMessageDetails": {"messageText": text},
+        }
+    }
+
+
 # --- live client (needs operator OAuth) -----------------------------------
 
 SCOPES = ["https://www.googleapis.com/auth/youtube.force-ssl"]
@@ -232,3 +249,14 @@ class YouTubeLiveClient:
             pageToken=page_token or None,
         )
         return req.execute()
+
+    def insert_chat_message(self, live_chat_id: str, text: str) -> str:
+        """Post one message to live chat. Returns the message id."""
+        service = self._service_or_raise()
+        body = build_chat_insert_body(live_chat_id, text)
+        resp = (
+            service.liveChatMessages()
+            .insert(part="snippet", body=body)
+            .execute()
+        )
+        return resp["id"]

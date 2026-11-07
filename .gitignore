@@ -4,6 +4,7 @@ __pycache__/
 config.yaml
 *.json
 !config.example.yaml
+!tests/fixtures/*.json
 logs/
 out/
 models/

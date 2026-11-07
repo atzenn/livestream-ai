@@ -1,0 +1,22 @@
+# Example product catalog - copy to products.yaml and edit.
+# NEVER put real shop credentials here, only public product links.
+# Prices are typed by the operator: the avatar only repeats them,
+# it never fetches or invents a price.
+# Links here are EXAMPLES (example.invalid never resolves). Replace
+# them with the operator's real Shopee / TikTok Shop / YouTube
+# Shopping affiliate links before a live session.
+products:
+  - id: P01
+    name: "Den ban hoc LED"
+    price_vnd: 189000
+    link: "https://example.invalid/shop/den-ban-hoc-led"
+    keywords: ["den", "den ban hoc", "led", "den hoc"]
+    note: "Anh sang 3 che do, co chan sac USB-C."
+    in_stock: true
+  - id: P02
+    name: "Gia do dien thoai"
+    price_vnd: 99000
+    link: "https://example.invalid/shop/gia-do-dien-thoai"
+    keywords: ["gia do", "do dien thoai", "tripod"]
+    note: "Xoay 360 do, kep chac chan."
+    in_stock: true
