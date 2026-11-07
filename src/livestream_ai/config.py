@@ -19,7 +19,7 @@ class ConfigError(ValueError):
 
 @dataclass
 class TTSConfig:
-    engine: str = "vieneu"  # vieneu | piper | mock
+    engine: str = "vieneu"  # vieneu | vieneu-pc | piper | mock
     voice: str = "Hải Đăng"
     precision: str = "fp32"  # fp32 | int8 (CPU only, vieneu)
     sample_rate: int = 48000
@@ -28,6 +28,18 @@ class TTSConfig:
     # Empty = let the SDK download from Hugging Face.
     onnx_dir: str = ""
     codec_dir: str = ""
+    # VieNeu-TTS on Zen's PC via its MCP server (port 8790).
+    # Default OFF: the access path is arranged by the Leader, and
+    # the MCP tool name / argument names are ASSUMED until the
+    # Leader confirms them (see tts.py VieNeuPC_TTS).
+    pc_mcp_enabled: bool = False
+    pc_mcp_host: str = ""  # PC address; env LIVESTREAM_PC_HOST wins
+    pc_mcp_url: str = ""  # full MCP endpoint URL; when set, host/port/path are ignored
+    pc_mcp_port: int = 8790
+    pc_mcp_path: str = "/mcp"  # streamable-HTTP endpoint (assumed)
+    pc_mcp_tool: str = "synthesize"  # ASSUMED tool name
+    pc_mcp_model: str = "v3-turbo"
+    pc_mcp_timeout_s: int = 60
 
 
 @dataclass
@@ -105,6 +117,47 @@ def load_config(path: str | Path) -> AppConfig:
     cfg.tts.piper_voice_path = str(tts.get("piper_voice_path", ""))
     cfg.tts.onnx_dir = str(tts.get("onnx_dir", ""))
     cfg.tts.codec_dir = str(tts.get("codec_dir", ""))
+    cfg.tts.pc_mcp_enabled = bool(tts.get("pc_mcp_enabled", False))
+    # Host from config; env LIVESTREAM_PC_HOST wins when set.
+    cfg.tts.pc_mcp_host = str(
+        os.environ.get("LIVESTREAM_PC_HOST", "")
+        or tts.get("pc_mcp_host", "")
+    )
+    cfg.tts.pc_mcp_port = int(tts.get("pc_mcp_port", 8790))
+    cfg.tts.pc_mcp_path = str(tts.get("pc_mcp_path", "/mcp"))
+    cfg.tts.pc_mcp_tool = str(tts.get("pc_mcp_tool", "synthesize"))
+    cfg.tts.pc_mcp_model = str(tts.get("pc_mcp_model", "v3-turbo"))
+    cfg.tts.pc_mcp_timeout_s = int(tts.get("pc_mcp_timeout_s", 60))
+    cfg.tts.pc_mcp_url = str(
+        os.environ.get("LIVESTREAM_PC_URL", "")
+        or tts.get("pc_mcp_url", "")
+    )
+    # Nested tts.pc_server block (preferred form) overrides the flat
+    # pc_mcp_* keys above when present. Keys: enabled, host, url,
+    # port, path, tool, model, timeout_s (or timeout).
+    pc = tts.get("pc_server") or {}
+    if not isinstance(pc, dict):
+        raise ConfigError("tts.pc_server must be a mapping")
+    if "enabled" in pc:
+        cfg.tts.pc_mcp_enabled = bool(pc["enabled"])
+    if "host" in pc:
+        cfg.tts.pc_mcp_host = str(
+            os.environ.get("LIVESTREAM_PC_HOST", "") or pc["host"]
+        )
+    if "url" in pc:
+        cfg.tts.pc_mcp_url = str(
+            os.environ.get("LIVESTREAM_PC_URL", "") or pc["url"]
+        )
+    if "port" in pc:
+        cfg.tts.pc_mcp_port = int(pc["port"])
+    if "path" in pc:
+        cfg.tts.pc_mcp_path = str(pc["path"])
+    if "tool" in pc:
+        cfg.tts.pc_mcp_tool = str(pc["tool"])
+    if "model" in pc:
+        cfg.tts.pc_mcp_model = str(pc["model"])
+    if "timeout_s" in pc or "timeout" in pc:
+        cfg.tts.pc_mcp_timeout_s = int(pc.get("timeout_s", pc.get("timeout")))
 
     av = raw.get("avatar") or {}
     cfg.avatar.engine = str(av.get("engine", cfg.avatar.engine))
@@ -154,8 +207,42 @@ def load_config(path: str | Path) -> AppConfig:
 
 
 def _validate(cfg: AppConfig) -> None:
-    if cfg.tts.engine not in ("vieneu", "piper", "mock"):
+    if cfg.tts.engine not in (
+        "vieneu",
+        "vieneu-pc",
+        "piper",
+        "mock",
+        "fallback",
+    ):
         raise ConfigError(f"unknown tts.engine: {cfg.tts.engine}")
+    if cfg.tts.engine == "vieneu-pc" and not cfg.tts.pc_mcp_enabled:
+        raise ConfigError(
+            "tts.engine is vieneu-pc but tts.pc_mcp_enabled is false"
+        )
+    if cfg.tts.pc_mcp_enabled and not cfg.tts.pc_mcp_host \
+            and not cfg.tts.pc_mcp_url:
+        raise ConfigError(
+            "tts.pc_mcp_enabled is true but no PC endpoint is set "
+            "(tts.pc_server.host / tts.pc_server.url, or "
+            "LIVESTREAM_PC_HOST / LIVESTREAM_PC_URL)"
+        )
+    if cfg.tts.pc_mcp_url and not cfg.tts.pc_mcp_url.startswith(
+        ("http://", "https://")
+    ):
+        raise ConfigError(
+            "tts.pc_server.url must start with http:// or https://, "
+            f"got: {cfg.tts.pc_mcp_url}"
+        )
+    if cfg.tts.pc_mcp_enabled and not cfg.tts.pc_mcp_tool:
+        raise ConfigError("tts.pc_server.tool must not be empty")
+    if not 1 <= cfg.tts.pc_mcp_port <= 65535:
+        raise ConfigError(
+            f"invalid tts.pc_mcp_port: {cfg.tts.pc_mcp_port}"
+        )
+    if cfg.tts.pc_mcp_timeout_s <= 0:
+        raise ConfigError(
+            f"invalid tts.pc_mcp_timeout_s: {cfg.tts.pc_mcp_timeout_s}"
+        )
     if cfg.tts.precision not in ("fp32", "int8"):
         raise ConfigError(f"unknown tts.precision: {cfg.tts.precision}")
     if cfg.tts.sample_rate not in (16000, 22050, 24000, 48000):

@@ -10,6 +10,11 @@ Modes:
                 no OBS, no YouTube. Exercises the whole pipeline.
   --real-tts  : real VieNeu-TTS (downloads ~317 MB of model files on
                 first run), null avatar, fake OBS. No live broadcast.
+  --pc-tts    : VieNeu-TTS from Zen's PC via its MCP server (port
+                8790). Needs the Leader's access path to the PC; the
+                MCP tool name / arguments are ASSUMED until the
+                Leader confirms them. Falls back to Piper when the
+                PC server is unreachable.
   --real-obs  : also connects to a real OBS (needs OBS running with
                 WebSocket server on, OBS_WS_PASSWORD set).
   --go-live   : NOT implemented in Phase 1. Going live needs the
@@ -41,6 +46,7 @@ def main() -> int:
     ap.add_argument("--out", default="out/smoke")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--real-tts", action="store_true")
+    ap.add_argument("--pc-tts", action="store_true")
     ap.add_argument("--real-obs", action="store_true")
     ap.add_argument("--go-live", action="store_true")
     args = ap.parse_args()
@@ -60,6 +66,8 @@ def main() -> int:
     tts_engine = "mock" if args.dry_run else cfg.tts.engine
     if args.real_tts:
         tts_engine = "vieneu"
+    if args.pc_tts:
+        tts_engine = "vieneu-pc"
     tts = build_tts(
         tts_engine,
         voice=cfg.tts.voice,
@@ -68,6 +76,12 @@ def main() -> int:
         piper_voice_path=cfg.tts.piper_voice_path,
         onnx_dir=cfg.tts.onnx_dir,
         codec_dir=cfg.tts.codec_dir,
+        pc_mcp_host=cfg.tts.pc_mcp_host,
+        pc_mcp_port=cfg.tts.pc_mcp_port,
+        pc_mcp_path=cfg.tts.pc_mcp_path,
+        pc_mcp_tool=cfg.tts.pc_mcp_tool,
+        pc_mcp_model=cfg.tts.pc_mcp_model,
+        pc_mcp_timeout_s=cfg.tts.pc_mcp_timeout_s,
     )
     avatar = build_avatar(
         cfg.avatar.engine,

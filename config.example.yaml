@@ -4,13 +4,25 @@
 language: vi
 
 tts:
-  engine: vieneu        # vieneu | piper | mock
+  engine: vieneu        # vieneu | vieneu-pc | piper | mock
   voice: "Hải Đăng"    # VieNeu preset voice (North/Central/South)
   precision: fp32       # fp32 | int8 (CPU only)
   sample_rate: 48000
   piper_voice_path: "models/piper/vi_VN-25hours_single-low.onnx"
   onnx_dir: "models/vieneu-onnx"  # local VieNeu ONNX files (fp32)
   codec_dir: "models/moss-codec"  # local MOSS codec ONNX files
+  # VieNeu-TTS on Zen's PC via its MCP server (port 8790).
+  # Default OFF: the access path is arranged by the Leader, and the
+  # MCP tool name / argument names are ASSUMED until the Leader
+  # confirms them (see src/livestream_ai/tts.py). Host can also come
+  # from env LIVESTREAM_PC_HOST. No credential goes here.
+  pc_mcp_enabled: false
+  pc_mcp_host: ""
+  pc_mcp_port: 8790
+  pc_mcp_path: "/mcp"
+  pc_mcp_tool: "synthesize"
+  pc_mcp_model: "v3-turbo"
+  pc_mcp_timeout_s: 60
 
 avatar:
   engine: "null"        # "null" (dry run) | musetalk (GPU box only)

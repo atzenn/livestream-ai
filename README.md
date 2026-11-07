@@ -78,6 +78,29 @@ Piper fallback (voice `vi_VN-25hours_single-low`, 16 kHz):
     --script scripts/sample_script_vi.md --out out/piper
 ```
 
+VieNeu from Zen's PC (MCP server, port 8790) - new source, not
+yet tested live:
+
+```bash
+# in config.yaml set: tts.engine: vieneu-pc, pc_mcp_enabled: true,
+# pc_mcp_host: <PC address from the Leader>
+.venv/bin/python scripts/run_phase1_smoke.py --config config.yaml \
+    --script scripts/sample_script_vi.md --out out/pc --pc-tts
+```
+
+The PC runs VieNeu-TTS v3 Turbo (model v3-turbo, voice "Hải Đăng")
+behind an MCP server on port 8790; the Leader made a 5.9 s sample
+voice on the PC on 03/11/2026. The access path from the livestream
+machine to the PC is arranged by the Leader. When the PC server is
+unreachable the pipeline falls back to Piper automatically and logs
+the fallback; it never stops the run. The MCP tool name
+("synthesize") and argument names (text / voice / model) are
+ASSUMPTIONS: no document in the workspace describes the PC
+server's tools, so the Leader must confirm them before the first
+real call. Only the MCP JSON-RPC transport is standard. The PC
+client is tested against a local mock MCP server only; a real test
+with the PC is still owed.
+
 Model files live in `models/` (gitignored, ~600 MB). They are
 re-downloadable with `scripts/setup_models.sh`. The script also
 fixes a Hugging Face cache quirk: the MOSS codec ONNX files

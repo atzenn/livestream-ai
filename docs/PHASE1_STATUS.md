@@ -5,12 +5,12 @@ verdict CHẤP NHẬN CÓ ĐIỀU KIỆN, HỌC THIẾT KẾ, 17/17 critic condi
 fixed). Scope: study section 11, Pha 1 (YouTube-first).
 
 Repo: `atzenn/livestream-ai` on GitHub.
-- GitHub API (anonymous): 404 Not Found.
-- `git ls-remote https://github.com/atzenn/livestream-ai.git`:
-  `fatal: could not read Username` (private repo, no credential).
-- Conclusion: repo cannot be cloned from this VM. Scaffold built
-  locally in `~/workspace/livestream-ai-mvp/` for the Leader to push
-  once the push path is decided. No push, no merge, no public post.
+- Scaffold pushed by the Leader: commit fa3a973
+  ("feat: livestream AI MVP phase 1 - TTS + OBS + YouTube scaffold",
+  30 tracked files). The local scaffold in
+  `~/workspace/livestream-ai-mvp/` matches the pushed commit.
+- The repo was private at build time (API 404, ls-remote needed a
+  credential); it is public now, so the scaffold can be cloned.
 
 ## Build
 
@@ -67,6 +67,39 @@ Repo: `atzenn/livestream-ai` on GitHub.
   The study's Phase 0 asks for it; it needs a separate run on the
   GPU box or a streaming test here.
 
+## VieNeu-TTS via Zen's PC (MCP server, port 8790) - NEW, WAITING real test
+
+- Source: VieNeu-TTS v3 Turbo on Zen's PC (model v3-turbo, voice
+  "Hải Đăng"), reached through an MCP server on port 8790. The
+  Leader connected and made a 5.9 s sample voice on the PC on
+  03/11/2026. The access path from the livestream machine to the PC
+  is arranged by the Leader.
+- Code: new backend `VieNeuPC_TTS` in `src/livestream_ai/tts.py`
+  (MCP streamable HTTP, JSON-RPC 2.0, stdlib only), engine name
+  `vieneu-pc`, config section `tts.pc_mcp_*` in
+  `config.example.yaml` (default OFF). Endpoint comes from config
+  or env `LIVESTREAM_PC_HOST`; no PC address is hardcoded, no
+  credential in code or config. Smoke runner flag `--pc-tts`.
+- Fallback: when the PC server is unreachable the pipeline falls
+  back to Piper automatically and logs the fallback (stderr
+  "[tts] ... falling back to PiperTTS"); the run never stops.
+  Verified end-to-end: config with a closed PC port produced 4
+  Piper segments (28.2 s audio, exit 0).
+- ASSUMED INTERFACE (not verified): no document in the workspace
+  describes the PC server's tool names or argument names. The
+  client assumes tool "synthesize" with arguments text / voice /
+  model, and accepts audio back as an MCP audio content block, an
+  embedded resource blob, or base64 WAV text. Only the MCP JSON-RPC
+  transport itself (initialize / tools/call) is standard. The
+  Leader must confirm the tool name and argument names before the
+  first real call with the PC.
+- Tests: 10 new unit tests (6 TTS + 4 config), all PASS, total
+  42/32 old + 10 new. The PC backend is tested against a local
+  mock MCP server only (sine WAV audio block, session id carried,
+  tool error, unreachable server, fallback logging). The real PC
+  was NEVER dialled in tests. A real test with the PC is still
+  owed, through the Leader's access path.
+
 ## Piper fallback - PASS
 
 - `piper-tts` installed; voice `vi_VN-25hours_single-low` (63 MB,
@@ -114,10 +147,16 @@ Repo: `atzenn/livestream-ai` on GitHub.
 
 ## Needs a decision (Leader)
 
-1. Push path for `atzenn/livestream-ai` (repo is private, no
-   credential on this VM) - where does this scaffold go?
+1. Push path for `atzenn/livestream-ai` - DONE. Scaffold pushed
+   at commit fa3a973 (30 tracked files, unit tests 32/32 re-run
+   from a fresh clone).
 2. GPU box for MuseTalk / LiveTalking (which machine, checkpoints,
    avatar bundle) - or is Phase 1 TTS + OBS + YouTube enough for now?
 3. YouTube channel + Google Cloud project for the live test
    (operator's account, OAuth consent) - who provides it?
-4. License: scaffold uses MIT (ZenCode default). Confirm or change.
+4. License: scaffold uses MIT (ZenCode default). Confirmed by the
+   Leader (tin 7403).
+5. VieNeu PC path: confirm the MCP tool name ("synthesize" assumed)
+   and argument names (text / voice / model assumed), provide the
+   access path to Zen's PC, and arrange the first real test call
+   with the PC.
