@@ -1,0 +1,54 @@
+# TEST catalog for livestream-ai Phase 2 - NOT for a real live session.
+# Copy to products.yaml only to test the flow (load, classify, draft,
+# queue, overlay). Before a real live, replace with real product
+# pages + re-checked prices, and enter real affiliate IDs in
+# ztr.info /admin.
+#
+# Products T01-T04 come from the trend brief of 07/11/2026
+# (~/workspace/system/trend-aff-shopee-lazada-2026-11-07.md, source:
+# shopeeanalytics.com, third-party estimates). Prices are as of
+# 07/11 and MUST be re-checked before any live. Links are ztr.info
+# /goto/ wrappers around Shopee/Lazada SEARCH pages (not product
+# pages) so the test flow works without inventing product URLs.
+# T05 is a Lazada example with an unverified example price.
+products:
+  - id: T01
+    name: "Nuoc tay trang L'Oreal Paris Micellar Water 400ml"
+    price_vnd: 189000
+    platform: shopee
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fshopee.vn%2Fsearch%3Fkeyword%3DLoreal%2BParis%2BMicellar%2BWater%2B400ml&s=livestream-ai&ref=live-test"
+    keywords: ["tay trang", "loreal", "micellar", "nuoc tay trang"]
+    note: "Test 07/11: +584 luot ban trong ngay, hoa hong 5%."
+    in_stock: true
+  - id: T02
+    name: "Serum Vaseline Gluta-Hya 300ml"
+    price_vnd: 148000
+    platform: shopee
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fshopee.vn%2Fsearch%3Fkeyword%3DVaseline%2BGluta-Hya%2BSerum%2B300ml&s=livestream-ai&ref=live-test"
+    keywords: ["serum", "vaseline", "gluta", "duong da"]
+    note: "Test 07/11: +382 luot ban trong ngay."
+    in_stock: true
+  - id: T03
+    name: "Rong bien gion O'FOOD"
+    price_vnd: 32000
+    platform: shopee
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fshopee.vn%2Fsearch%3Fkeyword%3DRong%2Bbien%2BOFOOD&s=livestream-ai&ref=live-test"
+    keywords: ["rong bien", "ofood", "an vat"]
+    note: "Test 07/11: +518 luot ban trong ngay, hoa hong 6%."
+    in_stock: true
+  - id: T04
+    name: "Hop qua tang 20/11 tang thay co"
+    price_vnd: 49000
+    platform: shopee
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fshopee.vn%2Fsearch%3Fkeyword%3DHop%2Bqua%2Btang%2Bthay%2Bco&s=livestream-ai&ref=live-test"
+    keywords: ["qua tang", "20/11", "hop qua", "tang thay co"]
+    note: "Test 07/11: +986 luot ban trong ngay, hoa hong 10%."
+    in_stock: true
+  - id: T05
+    name: "Gia do dien thoai"
+    price_vnd: 99000
+    platform: lazada
+    link: "https://z-tracker.7en.workers.dev/goto/?url=https%3A%2F%2Fwww.lazada.vn%2Fcatalog%2F%3Fq%3DGia%2Bdo%2Bdien%2Bthoai&s=livestream-ai&ref=live-test"
+    keywords: ["gia do", "do dien thoai", "tripod"]
+    note: "Gia vi du, chua doi chieu. Chi de test nhanh Lazada."
+    in_stock: true

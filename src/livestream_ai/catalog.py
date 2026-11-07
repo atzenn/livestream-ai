@@ -165,7 +165,10 @@ def find_product(text: str, products: list[Product]) -> Product | None:
                 # Longer keywords are more specific, weigh them more.
                 score += len(kw)
         for token in p.name.lower().split():
-            if len(token) > 2 and token in lowered:
+            # Only long tokens count: short words like "gia" (price)
+            # appear in almost every question and would outvote the
+            # real keyword match. Keywords carry short matches instead.
+            if len(token) > 3 and token in lowered:
                 score += 2
         if score > best_score:
             best_score = score

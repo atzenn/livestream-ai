@@ -61,6 +61,18 @@ class TestCatalog(unittest.TestCase):
     def test_find_none(self):
         self.assertIsNone(find_product("hom nay troi dep nhi", self.products))
 
+    def test_short_name_token_does_not_match(self):
+        # "gia" (price) is a 3-letter name token of "Gia do dien
+        # thoai" and appears in nearly every price question. It must
+        # not match a question about a different product ("Den ban
+        # hoc"), which is not in the test catalog.
+        test_products = load_products(
+            Path(__file__).resolve().parents[1] / "products.test.yaml"
+        )
+        self.assertIsNone(
+            find_product("Den ban hoc gia bao nhieu?", test_products)
+        )
+
     def test_missing_file(self):
         with self.assertRaises(CatalogError):
             load_products(FIXTURES / "no-such-products.yaml")
